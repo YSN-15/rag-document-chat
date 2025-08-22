@@ -12,7 +12,7 @@ class GroqLLMService:
             raise ValueError("GROQ API key not configured")
         
         self.base_url = "https://api.groq.com/openai/v1"
-        self.model = "mixtral-8x7b-32768"  # Using Mixtral model
+        self.model = "llama-3.1-70b-versatile"  # Using Llama 3.1 model
         
         self.system_prompt = """
 You are a helpful assistant that answers questions based on the provided document context.
