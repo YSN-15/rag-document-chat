@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Documents - RAG Assistant{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="bi bi-cloud-upload me-2"></i>Upload Documents</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">
+                    Upload your documents to start building your knowledge base. Supported formats: PDF, DOCX, TXT, PNG, JPG
+                </p>
+                
+                <form id="uploadForm" action="{{ url_for('documents.upload_file') }}" method="post" enctype="multipart/form-data">
+                    <div class="upload-area border-2 border-dashed border-primary rounded p-5 text-center mb-4" id="uploadArea">
+                        <div class="upload-content">
+                            <i class="bi bi-file-earmark-arrow-up display-1 text-primary mb-3"></i>
+                            <h5>Drag and drop your files here</h5>
+                            <p class="text-muted">or</p>
+                            <input type="file" class="form-control d-none" id="fileInput" name="file" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg">
+                            <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                                <i class="bi bi-folder2-open me-2"></i>Browse Files
+                            </button>
+                        </div>
+                        
+                        <div class="upload-progress d-none">
+                            <div class="spinner-border text-primary me-3" role="status">
+                                <span class="visually-hidden">Processing...</span>
+                            </div>
+                            <span>Processing document...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="file-info d-none mb-3" id="fileInfo">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title mb-2">Selected File:</h6>
+                                <p class="card-text mb-1" id="fileName"></p>
+                                <small class="text-muted" id="fileSize"></small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg" id="uploadBtn" disabled>
+                            <i class="bi bi-upload me-2"></i>Upload and Process
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="mt-4">
+                    <h6>File Requirements:</h6>
+                    <ul class="list-unstyled small text-muted">
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Maximum file size: 10MB</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Supported formats: PDF, DOCX, TXT, PNG, JPG</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Images will be processed using OCR</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Documents are automatically chunked for optimal search</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-files display-4 text-info mb-3"></i>
+                        <h5>Manage Documents</h5>
+                        <p class="text-muted">View, search and manage your uploaded documents</p>
+                        <a href="{{ url_for('documents.list_documents') }}" class="btn btn-outline-info">
+                            <i class="bi bi-arrow-right me-1"></i>Go to Documents
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-chat-dots display-4 text-success mb-3"></i>
+                        <h5>Ask Questions</h5>
+                        <p class="text-muted">Chat with your documents using AI-powered search</p>
+                        <a href="{{ url_for('chat.chat_interface') }}" class="btn btn-outline-success">
+                            <i class="bi bi-arrow-right me-1"></i>Start Chatting
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const uploadForm = document.getElementById('uploadForm');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const uploadContent = uploadArea.querySelector('.upload-content');
+    const uploadProgress = uploadArea.querySelector('.upload-progress');
+    
+    // Drag and drop functionality
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('border-success');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('border-success');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('border-success');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            handleFileSelect(files[0]);
+        }
+    });
+    
+    // File input change
+    fileInput.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+        }
+    });
+    
+    function handleFileSelect(file) {
+        const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'image/png', 'image/jpeg', 'image/jpg'];
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        
+        if (!allowedTypes.includes(file.type) && !file.name.toLowerCase().match(/\.(pdf|docx|txt|png|jpg|jpeg)$/)) {
+            alert('File type not supported. Please upload PDF, DOCX, TXT, PNG, or JPG files.');
+            return;
+        }
+        
+        if (file.size > maxSize) {
+            alert('File too large. Maximum size is 10MB.');
+            return;
+        }
+        
+        // Show file info
+        fileName.textContent = file.name;
+        fileSize.textContent = formatFileSize(file.size);
+        fileInfo.classList.remove('d-none');
+        uploadBtn.disabled = false;
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    // Form submission
+    uploadForm.addEventListener('submit', function(e) {
+        uploadContent.classList.add('d-none');
+        uploadProgress.classList.remove('d-none');
+        uploadBtn.disabled = true;
+    });
+});
+</script>
+{% endblock %}

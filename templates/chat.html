@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - RAG Assistant{% endblock %}
+
+{% block content %}
+<div class="row h-75">
+    <div class="col-lg-8">
+        <!-- Chat Interface -->
+        <div class="card h-100 shadow">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-chat-dots me-2"></i>Chat with Documents</h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-light btn-sm" id="clearChat" title="Clear Chat">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                    <a href="{{ url_for('chat.export_chat') }}" class="btn btn-outline-light btn-sm" title="Export Chat">
+                        <i class="bi bi-download"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="card-body d-flex flex-column p-0">
+                <!-- Chat Messages -->
+                <div class="chat-messages flex-grow-1 p-3" id="chatMessages">
+                    {% if messages %}
+                        {% for message in messages %}
+                            {% if message.message_type == 'user' %}
+                                <div class="message user-message mb-3">
+                                    <div class="d-flex justify-content-end">
+                                        <div class="message-content bg-primary text-white rounded-3 p-3 max-width-75">
+                                            <div class="message-text">{{ message.content }}</div>
+                                            <small class="message-time opacity-75 d-block mt-1">
+                                                {{ message.timestamp.strftime('%H:%M') }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="message assistant-message mb-3">
+                                    <div class="d-flex">
+                                        <div class="message-content bg-light rounded-3 p-3 max-width-75">
+                                            <div class="message-text">{{ message.content }}</div>
+                                            {% if message.sources %}
+                                                {% set sources = message.sources | fromjson %}
+                                                {% if sources %}
+                                                    <div class="sources mt-2">
+                                                        <small class="text-muted">Sources:</small>
+                                                        {% for source in sources %}
+                                                            <div class="source-item small">
+                                                                <i class="bi bi-file-text me-1"></i>
+                                                                {{ source.document_name }} (Page {{ source.page_number }})
+                                                            </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% endif %}
+                                            {% endif %}
+                                            <small class="message-time text-muted d-block mt-1">
+                                                {{ message.timestamp.strftime('%H:%M') }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <div class="welcome-message text-center text-muted py-5">
+                            <i class="bi bi-chat-square-text display-4 mb-3"></i>
+                            <h4>Welcome to RAG Assistant</h4>
+                            <p>Ask questions about your uploaded documents and get AI-powered answers with source citations.</p>
+                            {% if not documents %}
+                                <div class="alert alert-info mt-3">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    You need to <a href="{{ url_for('main.index') }}">upload some documents</a> first before you can start chatting.
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Chat Input -->
+                <div class="chat-input border-top p-3">
+                    <form id="chatForm">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="questionInput" 
+                                   placeholder="Ask a question about your documents..." 
+                                   {% if not documents %}disabled{% endif %}>
+                            <button class="btn btn-success" type="submit" id="sendBtn" 
+                                    {% if not documents %}disabled{% endif %}>
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- Document Filter -->
+        <div class="card shadow mb-3">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-funnel me-2"></i>Document Filter</h6>
+            </div>
+            <div class="card-body">
+                {% if documents %}
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="allDocs" checked>
+                        <label class="form-check-label fw-bold" for="allDocs">
+                            All Documents ({{ documents|length }})
+                        </label>
+                    </div>
+                    <hr>
+                    {% for document in documents %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input doc-filter" type="checkbox" 
+                                   id="doc_{{ loop.index }}" value="{{ document.original_filename }}">
+                            <label class="form-check-label text-truncate" for="doc_{{ loop.index }}" 
+                                   title="{{ document.original_filename }}">
+                                <i class="bi bi-file-text me-1"></i>{{ document.original_filename }}
+                            </label>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        No documents available. <a href="{{ url_for('main.index') }}">Upload some documents</a> to get started.
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="card shadow">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-lightning me-2"></i>Quick Actions</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('main.index') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-upload me-2"></i>Upload Document
+                    </a>
+                    <a href="{{ url_for('documents.list_documents') }}" class="btn btn-outline-info btn-sm">
+                        <i class="bi bi-files me-2"></i>Manage Documents
+                    </a>
+                    <button class="btn btn-outline-warning btn-sm" id="clearChatBtn">
+                        <i class="bi bi-trash me-2"></i>Clear Chat
+                    </button>
+                </div>
+                
+                {% if documents %}
+                    <hr>
+                    <h6>Sample Questions:</h6>
+                    <div class="sample-questions">
+                        <button class="btn btn-outline-secondary btn-sm mb-2 w-100 text-start sample-question" 
+                                data-question="What are the main topics covered in the documents?">
+                            What are the main topics covered?
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm mb-2 w-100 text-start sample-question" 
+                                data-question="Can you summarize the key findings?">
+                            Summarize the key findings
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm mb-2 w-100 text-start sample-question" 
+                                data-question="What are the important dates mentioned?">
+                            Important dates mentioned
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chatForm = document.getElementById('chatForm');
+    const questionInput = document.getElementById('questionInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const chatMessages = document.getElementById('chatMessages');
+    const clearChatBtn = document.getElementById('clearChatBtn');
+    const clearChat = document.getElementById('clearChat');
+    const allDocsCheckbox = document.getElementById('allDocs');
+    const docFilters = document.querySelectorAll('.doc-filter');
+    const sampleQuestions = document.querySelectorAll('.sample-question');
+    
+    // Auto-scroll to bottom
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    
+    // Initial scroll
+    scrollToBottom();
+    
+    // Handle form submission
+    chatForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const question = questionInput.value.trim();
+        if (!question) return;
+        
+        // Get selected documents
+        const selectedDocs = [];
+        if (!allDocsCheckbox.checked) {
+            docFilters.forEach(checkbox => {
+                if (checkbox.checked) {
+                    selectedDocs.push(checkbox.value);
+                }
+            });
+        }
+        
+        // Add user message to chat
+        addMessage(question, 'user');
+        questionInput.value = '';
+        
+        // Show typing indicator
+        const typingIndicator = addTypingIndicator();
+        
+        try {
+            const response = await fetch('/chat/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    question: question,
+                    document_names: selectedDocs.length > 0 ? selectedDocs : null
+                })
+            });
+            
+            const data = await response.json();
+            
+            // Remove typing indicator
+            typingIndicator.remove();
+            
+            if (response.ok) {
+                addMessage(data.response, 'assistant', data.sources);
+            } else {
+                addMessage(`Error: ${data.error}`, 'assistant', [], true);
+            }
+        } catch (error) {
+            typingIndicator.remove();
+            addMessage(`Error: Failed to send message. Please try again.`, 'assistant', [], true);
+        }
+        
+        scrollToBottom();
+    });
+    
+    function addMessage(content, type, sources = [], isError = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}-message mb-3`;
+        
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+        
+        if (type === 'user') {
+            messageDiv.innerHTML = `
+                <div class="d-flex justify-content-end">
+                    <div class="message-content bg-primary text-white rounded-3 p-3 max-width-75">
+                        <div class="message-text">${content}</div>
+                        <small class="message-time opacity-75 d-block mt-1">${timeStr}</small>
+                    </div>
+                </div>
+            `;
+        } else {
+            let sourcesHtml = '';
+            if (sources && sources.length > 0) {
+                sourcesHtml = `
+                    <div class="sources mt-2">
+                        <small class="text-muted">Sources:</small>
+                        ${sources.map(source => `
+                            <div class="source-item small">
+                                <i class="bi bi-file-text me-1"></i>
+                                ${source.document_name} (Page ${source.page_number})
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="d-flex">
+                    <div class="message-content ${isError ? 'bg-danger text-white' : 'bg-light'} rounded-3 p-3 max-width-75">
+                        <div class="message-text">${content}</div>
+                        ${sourcesHtml}
+                        <small class="message-time ${isError ? 'text-white-50' : 'text-muted'} d-block mt-1">${timeStr}</small>
+                    </div>
+                </div>
+            `;
+        }
+        
+        chatMessages.appendChild(messageDiv);
+    }
+    
+    function addTypingIndicator() {
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'message assistant-message mb-3 typing-indicator';
+        typingDiv.innerHTML = `
+            <div class="d-flex">
+                <div class="message-content bg-light rounded-3 p-3">
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            </div>
+        `;
+        chatMessages.appendChild(typingDiv);
+        scrollToBottom();
+        return typingDiv;
+    }
+    
+    // Document filter handling
+    allDocsCheckbox.addEventListener('change', function() {
+        docFilters.forEach(checkbox => {
+            checkbox.disabled = this.checked;
+            if (this.checked) {
+                checkbox.checked = false;
+            }
+        });
+    });
+    
+    // Clear chat functionality
+    function clearChatHandler() {
+        if (confirm('Are you sure you want to clear the chat history?')) {
+            fetch('/chat/clear', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Failed to clear chat');
+                    }
+                })
+                .catch(error => {
+                    alert('Error clearing chat');
+                });
+        }
+    }
+    
+    clearChatBtn.addEventListener('click', clearChatHandler);
+    clearChat.addEventListener('click', clearChatHandler);
+    
+    // Sample questions
+    sampleQuestions.forEach(btn => {
+        btn.addEventListener('click', function() {
+            questionInput.value = this.dataset.question;
+            questionInput.focus();
+        });
+    });
+    
+    // Focus on input
+    questionInput.focus();
+});
+</script>
+{% endblock %}

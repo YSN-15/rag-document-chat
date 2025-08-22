@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Documents - RAG Assistant{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-files me-2"></i>My Documents</h2>
+            <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-2"></i>Upload New Document
+            </a>
+        </div>
+        
+        {% if documents %}
+            <div class="row">
+                {% for document in documents %}
+                <div class="col-lg-6 col-xl-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-truncate me-2" title="{{ document.original_filename }}">
+                                <i class="bi bi-file-text me-1"></i>{{ document.original_filename }}
+                            </span>
+                            {% if document.status == 'indexed' %}
+                                <span class="badge bg-success">Ready</span>
+                            {% elif document.status == 'processing' %}
+                                <span class="badge bg-warning">Processing</span>
+                            {% elif document.status == 'error' %}
+                                <span class="badge bg-danger">Error</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ document.status|title }}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar me-1"></i>
+                                    Uploaded: {{ document.upload_date.strftime('%Y-%m-%d %H:%M') }}
+                                </small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-hdd me-1"></i>
+                                    Size: {{ "%.1f KB"|format(document.file_size / 1024) }}
+                                </small>
+                            </div>
+                            
+                            {% if document.status == 'indexed' %}
+                                <div class="mb-3">
+                                    <small class="text-success">
+                                        <i class="bi bi-check-circle me-1"></i>
+                                        {{ document.total_chunks }} chunks indexed
+                                    </small>
+                                </div>
+                            {% elif document.status == 'processing' %}
+                                <div class="mb-3">
+                                    <small class="text-warning">
+                                        <i class="bi bi-hourglass-split me-1"></i>
+                                        Document is being processed...
+                                    </small>
+                                </div>
+                            {% elif document.status == 'error' %}
+                                <div class="mb-3">
+                                    <small class="text-danger">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                        Processing failed
+                                    </small>
+                                    {% if document.error_message %}
+                                        <div class="alert alert-danger alert-sm mt-2">
+                                            <small>{{ document.error_message }}</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="card-footer bg-transparent">
+                            <div class="btn-group w-100" role="group">
+                                {% if document.status == 'indexed' %}
+                                    <a href="{{ url_for('chat.chat_interface') }}?doc={{ document.original_filename }}" 
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-chat-dots me-1"></i>Ask Questions
+                                    </a>
+                                {% endif %}
+                                
+                                <form method="POST" action="{{ url_for('documents.delete_document', document_id=document.id) }}" 
+                                      class="d-inline" onsubmit="return confirm('Are you sure you want to delete this document?')">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-trash me-1"></i>Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Summary Card -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h5 class="card-title">Summary</h5>
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h3 class="text-primary">{{ documents|length }}</h3>
+                                <small class="text-muted">Total Documents</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h3 class="text-success">{{ documents|selectattr("status", "equalto", "indexed")|list|length }}</h3>
+                                <small class="text-muted">Ready</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h3 class="text-warning">{{ documents|selectattr("status", "equalto", "processing")|list|length }}</h3>
+                                <small class="text-muted">Processing</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="text-danger">{{ documents|selectattr("status", "equalto", "error")|list|length }}</h3>
+                            <small class="text-muted">Errors</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        {% else %}
+            <!-- Empty State -->
+            <div class="text-center py-5">
+                <i class="bi bi-file-text display-1 text-muted mb-4"></i>
+                <h3 class="text-muted">No Documents Yet</h3>
+                <p class="text-muted mb-4">Upload your first document to get started with the RAG assistant.</p>
+                <a href="{{ url_for('main.index') }}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-upload me-2"></i>Upload Document
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-refresh processing documents
+    const processingDocs = document.querySelectorAll('.badge.bg-warning');
+    if (processingDocs.length > 0) {
+        setTimeout(() => {
+            location.reload();
+        }, 5000); // Refresh every 5 seconds if there are processing documents
+    }
+});
+</script>
+{% endblock %}
