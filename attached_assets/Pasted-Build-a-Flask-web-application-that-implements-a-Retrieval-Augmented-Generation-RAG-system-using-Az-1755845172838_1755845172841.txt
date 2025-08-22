@@ -1,0 +1,252 @@
+Build a Flask web application that implements a Retrieval-Augmented Generation (RAG) system using Azure AI services and GROQ LLM. The app should allow users to upload documents, process them intelligently, store them in a searchable format, and answer questions based on the uploaded content.
+Credentials Provided
+You will receive the following credentials:
+
+Azure AI Document Intelligence: Endpoint and API key for document processing
+Azure AI Search: Service endpoint, admin key, and index name
+GROQ API: API key for LLM interactions
+
+Core Requirements
+1. Flask Web Application Structure
+Create a clean, user-friendly Flask application with the following pages:
+
+Home Page: Document upload interface with drag-and-drop functionality
+Documents Page: List of processed documents with status indicators
+Query Interface: Chat-like interface for asking questions about uploaded documents
+Results Display: Clean presentation of LLM responses with source citations
+
+2. Document Upload & Processing Pipeline
+Upload Functionality:
+
+Support multiple file formats: PDF, DOCX, TXT, PNG, JPG (for OCR)
+Implement file validation (size limits, type checking)
+Show upload progress with a loading indicator
+Store original files temporarily for processing
+
+Document Intelligence Integration:
+python# Process documents using Azure Document Intelligence
+# Extract:
+# - Text content
+# - Tables
+# - Key-value pairs
+# - Document structure (headings, paragraphs)
+# - Page numbers and metadata
+Data Chunking Strategy:
+
+Split documents into semantic chunks (max 1000 tokens per chunk)
+Preserve context by overlapping chunks (100-200 tokens)
+Maintain metadata for each chunk:
+
+Source document name
+Page number
+Section/heading context
+Chunk position in document
+
+
+
+3. Azure AI Search Integration
+Index Schema:
+Create an index with the following fields:
+
+id: Unique identifier for each chunk
+content: The text content of the chunk
+document_name: Source document filename
+page_number: Page where content appears
+section: Document section/heading
+upload_date: Timestamp of upload
+content_vector: Vector embedding for semantic search (optional but recommended)
+
+Indexing Pipeline:
+
+Process extracted text into chunks
+Generate metadata for each chunk
+Batch upload chunks to Azure AI Search
+Handle indexing errors gracefully
+Provide status updates during indexing
+
+4. Query Processing & Search
+Search Implementation:
+
+Implement hybrid search (keyword + semantic if vectors are used)
+Configure search parameters:
+
+Top K results (default: 5)
+Minimum relevance score threshold
+Search filters (by document, date range)
+
+
+Return relevant chunks with metadata
+
+Context Building:
+
+Aggregate search results into coherent context
+Order by relevance score
+Include source attribution for each chunk
+Limit total context to LLM token limits
+
+5. GROQ LLM Integration
+Prompt Engineering:
+pythonsystem_prompt = """
+You are a helpful assistant that answers questions based on the provided document context.
+Always cite your sources by referencing the document name and page number.
+If the context doesn't contain relevant information, say so clearly.
+Be concise but thorough in your responses.
+"""
+
+user_prompt = f"""
+Context from documents:
+{search_results}
+
+Question: {user_query}
+
+Please provide a comprehensive answer based on the context above.
+"""
+Response Handling:
+
+Stream responses for better UX
+Parse and format LLM output
+Highlight source citations
+Handle API errors and rate limits
+Implement retry logic with exponential backoff
+
+6. User Interface Requirements
+Frontend Design:
+
+Responsive design using Bootstrap or Tailwind CSS
+Clean, modern interface with smooth animations
+Dark/light mode toggle
+Mobile-friendly layout
+
+Key UI Components:
+
+Upload Area:
+
+Drag-and-drop zone
+File preview before upload
+Progress bars for processing
+
+
+Chat Interface:
+
+Message bubbles for Q&A
+Typing indicators
+Copy response button
+Source expandable cards
+
+
+Document Manager:
+
+List view with search/filter
+Delete documents option
+Processing status badges
+
+
+
+7. Additional Features
+Session Management:
+
+Implement user sessions for document isolation
+Store conversation history
+Allow export of Q&A sessions
+
+Error Handling:
+
+Comprehensive error messages
+Fallback mechanisms for service failures
+User-friendly error displays
+Logging for debugging
+
+Performance Optimization:
+
+Implement caching for frequent queries
+Async processing for large documents
+Pagination for document lists
+Lazy loading for chat history
+
+8. Project Structure
+flask-rag-app/
+├── app.py                 # Main Flask application
+├── requirements.txt       # Dependencies
+├── config.py             # Configuration and credentials
+├── services/
+│   ├── document_intelligence.py  # Azure DI integration
+│   ├── azure_search.py          # Search service
+│   ├── groq_llm.py              # GROQ API integration
+│   └── document_processor.py    # Chunking and processing
+├── models/
+│   └── schemas.py        # Data models
+├── static/
+│   ├── css/
+│   │   └── style.css
+│   └── js/
+│       └── main.js      # Frontend interactions
+├── templates/
+│   ├── base.html
+│   ├── index.html       # Upload page
+│   ├── chat.html        # Query interface
+│   └── documents.html   # Document list
+└── uploads/            # Temporary file storage
+9. Environment Variables
+env# Azure Document Intelligence
+AZURE_DI_ENDPOINT=<provided>
+AZURE_DI_KEY=<provided>
+
+# Azure AI Search
+AZURE_SEARCH_ENDPOINT=<provided>
+AZURE_SEARCH_KEY=<provided>
+AZURE_SEARCH_INDEX=<provided>
+
+# GROQ API
+GROQ_API_KEY=<provided>
+
+# Flask Config
+FLASK_SECRET_KEY=<generate-random>
+MAX_FILE_SIZE=10485760  # 10MB
+ALLOWED_EXTENSIONS=pdf,docx,txt,png,jpg
+10. Testing Requirements
+
+Test document upload with various formats
+Verify search accuracy and relevance
+Test LLM response quality
+Check error handling scenarios
+Validate UI responsiveness
+Test concurrent user sessions
+
+Deliverables
+
+Fully functional Flask application
+Clean, commented code
+README with setup instructions
+Requirements.txt with all dependencies
+Basic CSS styling for professional appearance
+Error handling and user feedback mechanisms
+
+Success Criteria
+
+Documents upload and process successfully
+Search returns relevant results
+LLM provides accurate, sourced answers
+UI is intuitive and responsive
+System handles errors gracefully
+Code is modular and maintainable
+
+Bonus Features (Optional)
+
+Add authentication/user accounts
+Implement document versioning
+Add export functionality (PDF/CSV)
+Create admin dashboard for monitoring
+Add multi-language support
+Implement real-time collaboration features
+Add voice input for queries
+Create mobile app API endpoints
+
+Important Notes
+
+Ensure all API keys are securely stored
+Implement rate limiting to prevent abuse
+Add input validation for security
+Use environment variables for all credentials
+Include proper CORS configuration if needed
+Document all API endpoints clearly
+Follow Flask best practices for production readiness
