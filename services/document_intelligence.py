@@ -1,6 +1,6 @@
 import os
 import logging
-from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 from config import Config
 
@@ -14,7 +14,7 @@ class DocumentIntelligenceService:
         if not self.endpoint or not self.key:
             raise ValueError("Azure Document Intelligence credentials not configured")
         
-        self.client = DocumentAnalysisClient(
+        self.client = DocumentIntelligenceClient(
             endpoint=self.endpoint,
             credential=AzureKeyCredential(self.key)
         )
@@ -28,7 +28,7 @@ class DocumentIntelligenceService:
             with open(file_path, 'rb') as file:
                 poller = self.client.begin_analyze_document(
                     "prebuilt-document", 
-                    document=file
+                    file
                 )
                 result = poller.result()
             
@@ -104,7 +104,7 @@ class DocumentIntelligenceService:
             with open(file_path, 'rb') as file:
                 poller = self.client.begin_analyze_document(
                     "prebuilt-read",
-                    document=file
+                    file
                 )
                 result = poller.result()
             

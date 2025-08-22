@@ -22,6 +22,8 @@ class DocumentProcessor:
         """
         Process an uploaded file through the complete pipeline
         """
+        document = None
+        file_path = None
         try:
             # Save file temporarily
             filename = secure_filename(file.filename)
@@ -29,15 +31,14 @@ class DocumentProcessor:
             file.save(file_path)
             
             # Create document record
-            document = Document(
-                filename=filename,
-                original_filename=file.filename,
-                file_path=file_path,
-                file_size=os.path.getsize(file_path),
-                mime_type=file.content_type or 'application/octet-stream',
-                session_id=session_id,
-                status='processing'
-            )
+            document = Document()
+            document.filename = filename
+            document.original_filename = file.filename
+            document.file_path = file_path
+            document.file_size = os.path.getsize(file_path)
+            document.mime_type = file.content_type or 'application/octet-stream'
+            document.session_id = session_id
+            document.status = 'processing'
             db.session.add(document)
             db.session.commit()
             
@@ -56,14 +57,13 @@ class DocumentProcessor:
             chunk_objects = []
             for i, chunk in enumerate(chunks):
                 chunk_id = f"{document.id}_{i}"
-                chunk_obj = DocumentChunk(
-                    document_id=document.id,
-                    chunk_index=i,
-                    content=chunk['content'],
-                    page_number=chunk.get('page_number', 1),
-                    section=chunk.get('section', ''),
-                    azure_search_id=chunk_id
-                )
+                chunk_obj = DocumentChunk()
+                chunk_obj.document_id = document.id
+                chunk_obj.chunk_index = i
+                chunk_obj.content = chunk['content']
+                chunk_obj.page_number = chunk.get('page_number', 1)
+                chunk_obj.section = chunk.get('section', '')
+                chunk_obj.azure_search_id = chunk_id
                 chunk_objects.append(chunk_obj)
                 db.session.add(chunk_obj)
             
@@ -107,13 +107,13 @@ class DocumentProcessor:
             logger.error(f"Error processing document {file.filename}: {str(e)}")
             
             # Update document status to error
-            if 'document' in locals():
+            if document is not None:
                 document.status = 'error'
                 document.error_message = str(e)
                 db.session.commit()
             
             # Clean up temporary file
-            if 'file_path' in locals() and os.path.exists(file_path):
+            if file_path is not None and os.path.exists(file_path):
                 try:
                     os.remove(file_path)
                 except Exception:

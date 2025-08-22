@@ -58,11 +58,10 @@ def ask_question():
             })
         
         # Save user message
-        user_message = ChatMessage(
-            session_id=session_id,
-            message_type='user',
-            content=question
-        )
+        user_message = ChatMessage()
+        user_message.session_id = session_id
+        user_message.message_type = 'user'
+        user_message.content = question
         db.session.add(user_message)
         
         # Get document filters if specified
@@ -75,12 +74,11 @@ def ask_question():
         result = processor.search_and_answer(question, session_id, document_filters)
         
         # Save assistant message
-        assistant_message = ChatMessage(
-            session_id=session_id,
-            message_type='assistant',
-            content=result['response'],
-            sources=json.dumps(result['sources'])
-        )
+        assistant_message = ChatMessage()
+        assistant_message.session_id = session_id
+        assistant_message.message_type = 'assistant'
+        assistant_message.content = result['response']
+        assistant_message.sources = json.dumps(result['sources'])
         db.session.add(assistant_message)
         db.session.commit()
         
