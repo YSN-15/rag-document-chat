@@ -13,8 +13,7 @@ class Document(db.Model):
     upload_date = db.Column(db.DateTime, default=datetime.utcnow)
     processed_date = db.Column(db.DateTime)
     session_id = db.Column(db.String(100), nullable=False)
-    content = db.Column(Text)
-    page_count = db.Column(db.Integer, default=0)
+    total_chunks = db.Column(db.Integer, default=0)
     error_message = db.Column(Text)
     
     def __repr__(self):
