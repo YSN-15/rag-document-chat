@@ -47,9 +47,18 @@ class DocumentProcessor:
             else:
                 extracted_data = self.doc_intelligence.analyze_document(file_path)
             
-            # Store the full content directly in the document
-            document.content = extracted_data['content']
-            document.page_count = extracted_data.get('page_count', 1)
+            # Store extracted content in session for immediate use
+            from flask import session
+            if 'documents_content' not in session:
+                session['documents_content'] = {}
+            
+            session['documents_content'][str(document.id)] = {
+                'content': extracted_data['content'],
+                'filename': document.original_filename,
+                'page_count': extracted_data.get('page_count', 1)
+            }
+            
+            # Update document status only
             document.status = 'indexed'
             document.processed_date = datetime.utcnow()
             db.session.commit()
@@ -94,44 +103,54 @@ class DocumentProcessor:
         Answer question using full document content with LLM
         """
         try:
-            # Get all indexed documents for this session
-            documents_query = Document.query.filter_by(
-                session_id=session_id, 
-                status='indexed'
-            )
+            from flask import session
             
-            # Apply document filters if specified
-            if document_filters and 'document_names' in document_filters:
-                documents_query = documents_query.filter(
-                    Document.original_filename.in_(document_filters['document_names'])
-                )
+            # Get document content from session
+            documents_content = session.get('documents_content', {})
             
-            documents = documents_query.all()
-            
-            if not documents:
+            if not documents_content:
                 return {
-                    "response": "I couldn't find any indexed documents to answer this question. Please upload and process some documents first.",
+                    "response": "I couldn't find any documents to answer this question. Please upload and process some documents first.",
                     "sources": [],
                     "context_used": 0
                 }
             
-            # Combine all document content
+            # Get indexed documents from database to check which ones are ready
+            indexed_docs = Document.query.filter_by(
+                session_id=session_id, 
+                status='indexed'
+            ).all()
+            
+            if not indexed_docs:
+                return {
+                    "response": "No documents have been processed yet. Please wait for processing to complete.",
+                    "sources": [],
+                    "context_used": 0
+                }
+            
+            # Combine all document content from session
             full_context = ""
             sources = []
             
-            for doc in documents:
-                if doc.content:
+            for doc in indexed_docs:
+                doc_content = documents_content.get(str(doc.id))
+                if doc_content:
+                    # Apply document filters if specified
+                    if document_filters and 'document_names' in document_filters:
+                        if doc.original_filename not in document_filters['document_names']:
+                            continue
+                    
                     full_context += f"\n--- Document: {doc.original_filename} ---\n"
-                    full_context += doc.content + "\n"
+                    full_context += doc_content['content'] + "\n"
                     
                     sources.append({
                         'document_name': doc.original_filename,
-                        'page_count': doc.page_count or 1
+                        'page_count': doc_content.get('page_count', 1)
                     })
             
             if not full_context.strip():
                 return {
-                    "response": "No content found in the indexed documents.",
+                    "response": "No content found in the processed documents.",
                     "sources": sources,
                     "context_used": 0
                 }
