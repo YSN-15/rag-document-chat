@@ -22,22 +22,19 @@ Be concise but thorough in your responses.
 Format your citations as [Document: filename.pdf, Page: X].
 """
     
-    def generate_response(self, user_query, search_results):
+    def generate_response_from_context(self, user_query, context, sources):
         """
         Generate response using GROQ LLM based on search results
         """
         try:
-            # Build context from search results
-            context = self._build_context(search_results)
-            
-            # Construct the user prompt
+            # Construct the user prompt with the provided context
             user_prompt = f"""
 Context from documents:
 {context}
 
 Question: {user_query}
 
-Please provide a comprehensive answer based on the context above. Include specific citations for your sources.
+Please provide a comprehensive answer based on the context above. Include specific citations by mentioning the document names.
 """
             
             # Prepare the API request
@@ -77,15 +74,12 @@ Please provide a comprehensive answer based on the context above. Include specif
             
             generated_response = result['choices'][0]['message']['content']
             
-            # Extract sources used for citation
-            sources = self._extract_sources(search_results)
-            
             logger.info(f"Generated response for query: {user_query[:50]}...")
             
             return {
                 "response": generated_response,
                 "sources": sources,
-                "context_used": len(search_results)
+                "context_used": len(sources)
             }
             
         except requests.exceptions.Timeout:

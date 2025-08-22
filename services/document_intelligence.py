@@ -1,7 +1,8 @@
 import os
 import logging
-from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import HttpResponseError
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ class DocumentIntelligenceService:
         if not self.endpoint or not self.key:
             raise ValueError("Azure Document Intelligence credentials not configured")
         
-        self.client = DocumentIntelligenceClient(
+        self.client = DocumentAnalysisClient(
             endpoint=self.endpoint,
             credential=AzureKeyCredential(self.key)
         )
@@ -22,76 +23,68 @@ class DocumentIntelligenceService:
     def analyze_document(self, file_path):
         """
         Analyze document using Azure Document Intelligence
-        Returns extracted text, tables, and metadata
+        Returns extracted text content
         """
         try:
+            logger.info(f"Analyzing document: {file_path}")
+            
             with open(file_path, 'rb') as file:
+                # Use prebuilt-document model for general document analysis
                 poller = self.client.begin_analyze_document(
                     "prebuilt-document", 
-                    file
+                    document=file
                 )
                 result = poller.result()
             
-            # Extract text content with page information
-            extracted_data = {
-                'content': '',
-                'pages': [],
-                'tables': [],
-                'key_value_pairs': [],
-                'metadata': {}
-            }
+            # Extract all text content
+            full_text = ""
             
-            # Process pages
+            # Extract text from pages
             for page_idx, page in enumerate(result.pages):
-                page_content = ""
-                page_info = {
-                    'page_number': page_idx + 1,
-                    'content': '',
-                    'lines': []
-                }
+                page_text = f"\n--- Page {page_idx + 1} ---\n"
                 
                 # Extract lines from page
                 if hasattr(page, 'lines') and page.lines:
                     for line in page.lines:
-                        line_text = line.content
-                        page_content += line_text + "\n"
-                        page_info['lines'].append(line_text)
+                        page_text += line.content + "\n"
                 
-                page_info['content'] = page_content
-                extracted_data['pages'].append(page_info)
-                extracted_data['content'] += f"\n--- Page {page_idx + 1} ---\n" + page_content
+                full_text += page_text
             
-            # Extract tables
+            # Extract tables as text
             if hasattr(result, 'tables') and result.tables:
                 for table_idx, table in enumerate(result.tables):
-                    table_data = {
-                        'table_index': table_idx,
-                        'row_count': table.row_count,
-                        'column_count': table.column_count,
-                        'cells': []
-                    }
+                    full_text += f"\n--- Table {table_idx + 1} ---\n"
                     
+                    # Convert table to text format
+                    table_rows = {}
                     for cell in table.cells:
-                        table_data['cells'].append({
-                            'content': cell.content,
-                            'row_index': cell.row_index,
-                            'column_index': cell.column_index
-                        })
+                        row_idx = cell.row_index
+                        if row_idx not in table_rows:
+                            table_rows[row_idx] = {}
+                        table_rows[row_idx][cell.column_index] = cell.content
                     
-                    extracted_data['tables'].append(table_data)
+                    # Format table as text
+                    for row_idx in sorted(table_rows.keys()):
+                        row = table_rows[row_idx]
+                        row_text = " | ".join([row.get(col_idx, "") for col_idx in sorted(row.keys())])
+                        full_text += row_text + "\n"
             
-            # Extract key-value pairs
+            # Extract key-value pairs as text
             if hasattr(result, 'key_value_pairs') and result.key_value_pairs:
+                full_text += "\n--- Key-Value Pairs ---\n"
                 for kv_pair in result.key_value_pairs:
                     if kv_pair.key and kv_pair.value:
-                        extracted_data['key_value_pairs'].append({
-                            'key': kv_pair.key.content,
-                            'value': kv_pair.value.content
-                        })
+                        full_text += f"{kv_pair.key.content}: {kv_pair.value.content}\n"
             
-            logger.info(f"Successfully analyzed document: {file_path}")
-            return extracted_data
+            logger.info("Document analysis completed successfully")
+            return {
+                'content': full_text.strip(),
+                'page_count': len(result.pages)
+            }
             
+        except HttpResponseError as e:
+            logger.error(f"Azure Document Intelligence API error: {str(e)}")
+            raise Exception(f"Document analysis failed: {str(e)}")
         except Exception as e:
             logger.error(f"Error analyzing document {file_path}: {str(e)}")
             raise Exception(f"Document analysis failed: {str(e)}")
@@ -101,27 +94,32 @@ class DocumentIntelligenceService:
         Extract text from image files using OCR
         """
         try:
+            logger.info(f"Extracting text from image: {file_path}")
+            
             with open(file_path, 'rb') as file:
                 poller = self.client.begin_analyze_document(
                     "prebuilt-read",
-                    file
+                    document=file
                 )
                 result = poller.result()
             
             extracted_text = ""
-            for page in result.pages:
+            for page_idx, page in enumerate(result.pages):
+                page_text = f"\n--- Page {page_idx + 1} ---\n"
                 if hasattr(page, 'lines') and page.lines:
                     for line in page.lines:
-                        extracted_text += line.content + "\n"
+                        page_text += line.content + "\n"
+                extracted_text += page_text
             
+            logger.info("OCR extraction completed successfully")
             return {
-                'content': extracted_text,
-                'pages': [{'page_number': 1, 'content': extracted_text}],
-                'tables': [],
-                'key_value_pairs': [],
-                'metadata': {'extracted_via': 'OCR'}
+                'content': extracted_text.strip(),
+                'page_count': len(result.pages)
             }
             
+        except HttpResponseError as e:
+            logger.error(f"Azure Document Intelligence OCR API error: {str(e)}")
+            raise Exception(f"OCR extraction failed: {str(e)}")
         except Exception as e:
             logger.error(f"Error extracting text from image {file_path}: {str(e)}")
             raise Exception(f"OCR extraction failed: {str(e)}")
