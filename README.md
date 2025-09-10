@@ -15,7 +15,7 @@ Upload Document → Azure Document Intelligence → Extract Text → Store in Se
 - GROQ API account
 ## Environment Variables
 Create these environment variables in your deployment platform:
-```env
+
 # Azure Document Intelligence
 AZURE_DI_ENDPOINT=your_azure_document_intelligence_endpoint
 AZURE_DI_KEY=your_azure_document_intelligence_key
